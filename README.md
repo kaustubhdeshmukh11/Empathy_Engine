@@ -4,6 +4,11 @@
 
 ![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)
 
+<div align="center">
+ 
+  <img src="screenshot.png" alt="Empathy Engine Web UI" width="800"/>
+</div>
+
 ## Overview
 
 The Empathy Engine bridges the gap between text-based sentiment and expressive, human-like audio output. Instead of monotonic delivery, it analyzes the emotional content of your text and adjusts speech parameters — rate, pitch, volume, and speaking style — to achieve emotional resonance.

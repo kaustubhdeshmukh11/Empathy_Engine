@@ -85,7 +85,7 @@ class EmpathyEngine:
     gets its own emotion style in a single Azure SSML document.
     """
 
-    def __init__(self, output_dir: str = "demos", tts_engine: Optional[BaseTTSEngine] = None):
+    def __init__(self, output_dir: str = "output", tts_engine: Optional[BaseTTSEngine] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
