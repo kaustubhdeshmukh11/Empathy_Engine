@@ -1,0 +1,6 @@
+{
+  "pythonVersion": "3.10",
+  "include": ["empathy_engine", "tests", "app.py", "cli.py", "main.py"],
+  "venvPath": ".",
+  "venv": "venv"
+}

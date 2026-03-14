@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Empathy Engine — Emotionally Intelligent TTS</title>
+    <meta name="description" content="Transform text into emotionally expressive speech with AI-powered emotion detection and voice modulation.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Root ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-focus: rgba(139, 92, 246, 0.5);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-dim: #555570;
+            --accent: #8b5cf6;
+            --accent-glow: rgba(139, 92, 246, 0.25);
+            --joy: #fbbf24;
+            --surprise: #c084fc;
+            --anger: #ef4444;
+            --fear: #a78bfa;
+            --sadness: #60a5fa;
+            --disgust: #34d399;
+            --neutral: #94a3b8;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated Background ── */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                radial-gradient(circle at 20% 30%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(96, 165, 250, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-grid::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        /* ── Layout ── */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .header-icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            display: block;
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #f0f0f5 0%, #8b5cf6 50%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 400;
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255,255,255,0.12);
+        }
+
+        /* ── Input Section ── */
+        .input-section {
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 0.8s ease 0.1s both;
+        }
+
+        .input-section label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            padding: 1rem 1.25rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            line-height: 1.6;
+            resize: vertical;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.4rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ── Button ── */
+        .btn-synthesize {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .btn-synthesize:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-synthesize:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-synthesize:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-synthesize .btn-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .btn-synthesize.loading .spinner { display: block; }
+        .btn-synthesize.loading .btn-text { display: none; }
+
+        /* ── Results ── */
+        .results {
+            margin-top: 1.5rem;
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .results.visible { display: block; }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* ── Emotion Display ── */
+        .emotion-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .emotion-badge {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .emotion-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        .emotion-info h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .emotion-info .confidence {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.2rem;
+        }
+
+        .stat-card {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 0.4rem;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ── Intensity Bar ── */
+        .intensity-bar-container {
+            grid-column: 1 / -1;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .intensity-track {
+            height: 8px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .intensity-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            background: linear-gradient(90deg, var(--accent) 0%, #60a5fa 100%);
+        }
+
+        /* ── Voice Params ── */
+        .voice-params {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .param-card {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .param-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255,255,255,0.12);
+        }
+
+        .param-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 0.3rem;
+        }
+
+        .param-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+        }
+
+        /* ── Audio Player ── */
+        .audio-section {
+            margin-top: 1rem;
+        }
+
+        .audio-player-wrapper {
+            padding: 1.25rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .audio-player-wrapper audio {
+            width: 100%;
+            height: 44px;
+            outline: none;
+        }
+
+        .engine-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.25rem 0.6rem;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 6px;
+            color: var(--accent);
+            margin-top: 0.75rem;
+        }
+
+        /* ── Emotion Scores ── */
+        .scores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .score-item {
+            padding: 0.6rem 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .score-item.active {
+            border-color: var(--accent);
+            background: rgba(139, 92, 246, 0.05);
+        }
+
+        .score-label { 
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .score-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* ── Error ── */
+        .error-message {
+            padding: 1rem;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-sm);
+            color: #fca5a5;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-message.visible { display: block; }
+
+        /* ── Animations ── */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.3)); }
+            50% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.6)); }
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* ── Sentence Segments ── */
+        .segments-section {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .segments-section.visible { display: block; }
+
+        .segment-card {
+            padding: 1rem 1.25rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            margin-bottom: 0.6rem;
+            border-left: 3px solid var(--neutral);
+            transition: all 0.3s ease;
+        }
+
+        .segment-card:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .segment-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .segment-emotion {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .segment-confidence {
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        .segment-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+
+        .segment-params {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+        }
+
+        .segment-params span {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .container { padding: 1.25rem 1rem 3rem; }
+            .header h1 { font-size: 1.6rem; }
+            .emotion-display { grid-template-columns: 1fr; }
+            .voice-params { grid-template-columns: 1fr 1fr; }
+            .segment-params { flex-wrap: wrap; gap: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <span class="header-icon">🧠</span>
+            <h1>The Empathy Engine</h1>
+            <p>Transform text into emotionally expressive speech with AI-powered emotion detection and vocal modulation</p>
+        </header>
+
+        <!-- Input Card -->
+        <div class="card input-section">
+            <label for="text-input">Enter your text</label>
+            <textarea
+                id="text-input"
+                placeholder="Type or paste any text here... Try something emotional like &quot;I just got the most amazing news!&quot; or &quot;I can't believe this happened to me...&quot;"
+                maxlength="5000"
+                rows="5"
+            ></textarea>
+            <div class="char-count"><span id="char-count">0</span> / 5,000</div>
+
+            <button id="btn-synthesize" class="btn-synthesize" onclick="synthesize()">
+                <span class="btn-content">
+                    <span class="spinner"></span>
+                    <span class="btn-text">🎙️ Synthesize Speech</span>
+                </span>
+            </button>
+
+            <div id="error-msg" class="error-message"></div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="results">
+            <!-- Emotion Analysis -->
+            <div class="card" style="margin-bottom: 1rem; animation: fadeInUp 0.5s ease 0.1s both;">
+                <div class="section-title">Emotion Analysis</div>
+                <div class="emotion-display">
+                    <div class="emotion-badge">
+                        <span id="emotion-icon" class="emotion-icon">😐</span>
+                        <div class="emotion-info">
+                            <h3 id="emotion-label">NEUTRAL</h3>
+                            <div class="confidence"><span id="confidence-value">0%</span> confidence</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Valence</div>
+                        <div class="stat-value" id="valence-value">0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Intensity</div>
+                        <div class="stat-value" id="intensity-value">0%</div>
+                    </div>
+                    <div class="intensity-bar-container">
+                        <div class="stat-label">Emotional Intensity</div>
+                        <div class="intensity-track">
+                            <div id="intensity-bar" class="intensity-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- All Scores -->
+                <div class="section-title" style="margin-top: 0.5rem;">All Emotion Scores</div>
+                <div id="scores-grid" class="scores-grid"></div>
+            </div>
+
+            <!-- Sentence-Level Breakdown -->
+            <div id="segments-section" class="segments-section card" style="margin-bottom: 1rem; animation: fadeInUp 0.5s ease 0.15s both;">
+                <div class="section-title">📝 Sentence-Level Emotion Breakdown</div>
+                <div id="segments-container"></div>
+            </div>
+
+            <!-- Voice Parameters -->
+            <div class="card" style="margin-bottom: 1rem; animation: fadeInUp 0.5s ease 0.2s both;">
+                <div class="section-title">Voice Modulation</div>
+                <div class="voice-params">
+                    <div class="param-card">
+                        <div class="param-label">Rate</div>
+                        <div class="param-value" id="param-rate">175 WPM</div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Pitch Δ</div>
+                        <div class="param-value" id="param-pitch">+0 Hz</div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Volume</div>
+                        <div class="param-value" id="param-volume">0.85</div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Azure Style</div>
+                        <div class="param-value" id="param-style">default</div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Style°</div>
+                        <div class="param-value" id="param-degree">1.0</div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Emphasis</div>
+                        <div class="param-value" id="param-emphasis">none</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio Output -->
+            <div class="card" style="animation: fadeInUp 0.5s ease 0.3s both;">
+                <div class="section-title">Audio Output</div>
+                <div class="audio-section">
+                    <div class="audio-player-wrapper">
+                        <audio id="audio-player" controls preload="auto"></audio>
+                    </div>
+                    <div id="engine-badge" class="engine-badge">⚡ pyttsx3 (Offline)</div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>The Empathy Engine v1.0 — Powered by VADER, DistilRoBERTa & Azure Cognitive Services</p>
+        </footer>
+    </div>
+
+    <script>
+        // ── Elements ──
+        const textInput = document.getElementById('text-input');
+        const charCount = document.getElementById('char-count');
+        const btn = document.getElementById('btn-synthesize');
+        const resultsDiv = document.getElementById('results');
+        const errorDiv = document.getElementById('error-msg');
+
+        // ── Emotion icons & colors ──
+        const emotionMeta = {
+            joy:      { icon: '😊', color: 'var(--joy)' },
+            surprise: { icon: '😲', color: 'var(--surprise)' },
+            anger:    { icon: '😡', color: 'var(--anger)' },
+            fear:     { icon: '😰', color: 'var(--fear)' },
+            sadness:  { icon: '😢', color: 'var(--sadness)' },
+            disgust:  { icon: '🤢', color: 'var(--disgust)' },
+            neutral:  { icon: '😐', color: 'var(--neutral)' },
+        };
+
+        // ── Character counter ──
+        textInput.addEventListener('input', () => {
+            charCount.textContent = textInput.value.length;
+        });
+
+        // ── Ctrl+Enter shortcut ──
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                synthesize();
+            }
+        });
+
+        // ── Main function ──
+        async function synthesize() {
+            const text = textInput.value.trim();
+            if (!text) {
+                showError('Please enter some text to synthesize.');
+                return;
+            }
+
+            // Loading state
+            btn.classList.add('loading');
+            btn.disabled = true;
+            hideError();
+            resultsDiv.classList.remove('visible');
+
+            try {
+                const resp = await fetch('/synthesize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    throw new Error(data.error || 'Synthesis failed');
+                }
+
+                renderResults(data);
+            } catch (err) {
+                showError(err.message || 'An unexpected error occurred. Please try again.');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+
+        // ── Render results ──
+        function renderResults(data) {
+            const emotion = data.emotion || 'neutral';
+            const meta = emotionMeta[emotion] || emotionMeta.neutral;
+            const vc = data.voice_config || {};
+
+            // Emotion badge
+            document.getElementById('emotion-icon').textContent = meta.icon;
+            const labelEl = document.getElementById('emotion-label');
+            labelEl.textContent = emotion.toUpperCase();
+            labelEl.style.color = meta.color;
+
+            // Stats
+            document.getElementById('confidence-value').textContent = 
+                (data.confidence * 100).toFixed(1) + '%';
+            document.getElementById('valence-value').textContent = 
+                (data.valence >= 0 ? '+' : '') + data.valence.toFixed(2);
+            document.getElementById('valence-value').style.color = 
+                data.valence >= 0 ? 'var(--joy)' : 'var(--sadness)';
+            document.getElementById('intensity-value').textContent = 
+                (data.intensity * 100).toFixed(0) + '%';
+
+            // Intensity bar
+            const bar = document.getElementById('intensity-bar');
+            bar.style.width = '0%';
+            bar.style.background = `linear-gradient(90deg, ${meta.color}88, ${meta.color})`;
+            requestAnimationFrame(() => {
+                bar.style.width = (data.intensity * 100) + '%';
+            });
+
+            // All emotion scores
+            const scoresGrid = document.getElementById('scores-grid');
+            scoresGrid.innerHTML = '';
+            if (data.all_scores) {
+                // Sort by score descending
+                const sorted = Object.entries(data.all_scores)
+                    .sort(([,a], [,b]) => b - a);
+                for (const [label, score] of sorted) {
+                    const m = emotionMeta[label] || emotionMeta.neutral;
+                    const isActive = label === emotion;
+                    scoresGrid.innerHTML += `
+                        <div class="score-item ${isActive ? 'active' : ''}">
+                            <span class="score-label">${m.icon} ${label}</span>
+                            <span class="score-value">${(score * 100).toFixed(1)}%</span>
+                        </div>`;
+                }
+            }
+
+            // Voice params
+            document.getElementById('param-rate').textContent = (vc.rate || 175) + ' WPM';
+            const pitchVal = vc.pitch_delta || 0;
+            document.getElementById('param-pitch').textContent = 
+                (pitchVal >= 0 ? '+' : '') + pitchVal + ' Hz';
+            document.getElementById('param-volume').textContent = 
+                (vc.volume || 0.85).toFixed(2);
+            document.getElementById('param-style').textContent = vc.azure_style || 'default';
+            document.getElementById('param-degree').textContent = vc.style_degree || '1.0';
+            document.getElementById('param-emphasis').textContent = vc.emphasis || 'none';
+
+            // Audio
+            const player = document.getElementById('audio-player');
+            if (data.audio_url) {
+                player.src = data.audio_url;
+                player.load();
+            }
+
+            // Engine badge
+            document.getElementById('engine-badge').innerHTML = 
+                '⚡ ' + (data.tts_engine || 'Unknown Engine');
+
+            // Show results
+            resultsDiv.classList.add('visible');
+
+            // Segments
+            const segSection = document.getElementById('segments-section');
+            const segContainer = document.getElementById('segments-container');
+            segContainer.innerHTML = '';
+
+            if (data.segments && data.segments.length > 1) {
+                segSection.classList.add('visible');
+                data.segments.forEach((seg, idx) => {
+                    const sm = emotionMeta[seg.emotion] || emotionMeta.neutral;
+                    const vc = seg.voice_config || {};
+                    const pitchStr = (vc.pitch_delta >= 0 ? '+' : '') + (vc.pitch_delta || 0);
+                    segContainer.innerHTML += `
+                        <div class="segment-card" style="border-left-color: ${sm.color}; animation: fadeInUp 0.4s ease ${0.1 * idx}s both;">
+                            <div class="segment-header">
+                                <div class="segment-emotion" style="color: ${sm.color};">
+                                    ${sm.icon} ${seg.emotion.toUpperCase()}
+                                </div>
+                                <div class="segment-confidence">
+                                    ${(seg.confidence * 100).toFixed(1)}% · intensity ${(seg.intensity * 100).toFixed(0)}%
+                                </div>
+                            </div>
+                            <div class="segment-text">"${seg.sentence}"</div>
+                            <div class="segment-params">
+                                <span>⚡ ${vc.rate || 165} WPM</span>
+                                <span>🎵 ${pitchStr}Hz</span>
+                                <span>🔊 ${(vc.volume || 0.95).toFixed(2)}</span>
+                                <span>🎭 ${vc.azure_style || 'default'} (${vc.style_degree || 1.0})</span>
+                            </div>
+                        </div>`;
+                });
+            } else {
+                segSection.classList.remove('visible');
+            }
+
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ── Error helpers ──
+        function showError(msg) {
+            errorDiv.textContent = '❌ ' + msg;
+            errorDiv.classList.add('visible');
+        }
+        function hideError() {
+            errorDiv.classList.remove('visible');
+        }
+    </script>
+</body>
+</html>
