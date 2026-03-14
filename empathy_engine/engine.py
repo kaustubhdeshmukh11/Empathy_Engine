@@ -15,6 +15,12 @@ import uuid
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+
+def _slugify(text: str, max_len: int = 30) -> str:
+    """Turn text into a filesystem-safe slug for filenames."""
+    slug = re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')
+    return slug[:max_len].rstrip('_')
+
 try:
     from empathy_engine.emotion_detector import EmotionDetector, EmotionResult
     from empathy_engine.voice_modulator import VoiceModulator, VoiceConfig
@@ -79,7 +85,7 @@ class EmpathyEngine:
     gets its own emotion style in a single Azure SSML document.
     """
 
-    def __init__(self, output_dir: str = "output", tts_engine: Optional[BaseTTSEngine] = None):
+    def __init__(self, output_dir: str = "demos", tts_engine: Optional[BaseTTSEngine] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -173,27 +179,50 @@ class EmpathyEngine:
         dominant_emo = best_seg[1]
         dominant_vc = best_seg[2]
 
-        # Synthesize
+        # ── Smart strategy selection ─────────────────────────
+        # If all sentences share the same emotion → full express-as
+        # (max expressiveness, like single-sentence mode).
+        # If the total text is very short (< 30 words) → treat it as one burst 
+        # of emotion (full express-as), even if the punctuation implies multiple.
+        # Otherwise → prosody-only for smooth continuity.
+        unique_emotions = set(emo.emotion for _, emo, _ in segment_results)
+        same_emotion = len(unique_emotions) <= 1
+        word_count = len(text.split())
+        is_short = word_count < 20
+
+        # Generate descriptive filename
         if output_filename is None:
-            output_filename = f"empathy_{uuid.uuid4().hex[:8]}.wav"
+            slug = _slugify(text)
+            output_filename = f"{dominant_emo.emotion}_{slug}.wav"
         output_path = str(self.output_dir / output_filename)
 
         if verbose:
             print(f"\n{_div()}")
             print(f"{_B}  STEP 3 — TTS SYNTHESIS{_R}")
             print(_div())
-            if is_multi:
-                print(f"  Mode      : {_GRN}Segmented SSML{_R} "
-                      f"({len(sentences)} blocks, per-sentence emotions)")
+            if not is_multi:
+                print(f"  Mode      : Single-block SSML (full express-as)")
+            elif same_emotion:
+                print(f"  Mode      : {_GRN}Uniform emotion{_R} → "
+                      f"full express-as ({len(sentences)} sentences, all {_B}{dominant_emo.emotion}{_R})")
+            elif is_short:
+                print(f"  Mode      : {_MAG}Short text burst{_R} (<30 words) → "
+                      f"full express-as using dominant emotion: {_B}{dominant_emo.emotion}{_R}")
             else:
-                print(f"  Mode      : Single-block SSML")
+                print(f"  Mode      : {_YEL}Mixed emotions{_R} → "
+                      f"prosody-only ({len(sentences)} sentences, {len(unique_emotions)} emotions)")
 
-        # Use segmented synthesis if multi-sentence
-        if is_multi and len(segment_results) > 1:
+        # Strategy dispatch
+        if not is_multi:
+            # Single sentence → full express-as
+            audio_path = self.tts.synthesize(text, dominant_vc, output_path)
+        elif same_emotion or is_short:
+            # Multi-sentence, same emotion OR short burst → concatenate & use full express-as
+            audio_path = self.tts.synthesize(text, dominant_vc, output_path)
+        else:
+            # Multi-sentence, mixed emotions, long text → prosody-only for continuity
             segments_for_tts = [(s, vc) for s, _, vc in segment_results]
             audio_path = self.tts.synthesize_segmented(segments_for_tts, output_path)
-        else:
-            audio_path = self.tts.synthesize(text, dominant_vc, output_path)
 
         if verbose:
             print(f"  Engine    : {_B}{self.tts.engine_name}{_R}")

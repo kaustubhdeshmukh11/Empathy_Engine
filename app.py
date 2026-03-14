@@ -29,7 +29,7 @@ app = FastAPI(
 )
 
 # Output directory for audio files
-OUTPUT_DIR = Path("output")
+OUTPUT_DIR = Path("demos")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Templates

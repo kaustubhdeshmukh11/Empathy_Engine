@@ -39,54 +39,57 @@ class VoiceModulator:
 
     # Emotion-to-voice mapping: (rate_delta_range, pitch_delta_range, volume_delta_range, azure_style, emphasis)
     # Each range is (min_delta, max_delta) — interpolated by intensity
+    # Azure styles chosen for en-US-DavisNeural compatibility:
+    #   Supported: angry, cheerful, excited, friendly, hopeful,
+    #              shouting, terrified, unfriendly, whispering, sad
     EMOTION_MAP = {
         "joy": {
-            "rate": (10, 30),     # Lowered from (20, 50)
+            "rate": (10, 30),
             "pitch": (15, 40),
             "volume": (0.05, 0.15),
             "azure_style": "cheerful",
             "emphasis": "strong",
         },
         "surprise": {
-            "rate": (15, 35),     # Lowered from (30, 60)
+            "rate": (15, 35),
             "pitch": (20, 50),
             "volume": (0.05, 0.15),
             "azure_style": "excited",
             "emphasis": "strong",
         },
         "anger": {
-            "rate": (5, 20),      # Lowered from (10, 30)
+            "rate": (5, 20),
             "pitch": (-5, -15),
             "volume": (0.10, 0.20),
             "azure_style": "angry",
             "emphasis": "strong",
         },
         "fear": {
-            "rate": (10, 25),     # Lowered from (15, 40)
+            "rate": (10, 25),
             "pitch": (10, 25),
             "volume": (-0.10, -0.20),
-            "azure_style": "fearful",
+            "azure_style": "terrified",     # DavisNeural native style
             "emphasis": "reduced",
         },
         "sadness": {
-            "rate": (-15, -35),   # Lowered absolute deltas from (-20, -50)
+            "rate": (-15, -35),
             "pitch": (-10, -30),
             "volume": (-0.05, -0.15),
             "azure_style": "sad",
             "emphasis": "reduced",
         },
         "disgust": {
-            "rate": (-5, -15),    # Lowered absolute deltas from (-10, -25)
+            "rate": (-5, -15),
             "pitch": (-5, -15),
             "volume": (0.00, 0.10),
-            "azure_style": "disgruntled",
+            "azure_style": "unfriendly",    # DavisNeural native style
             "emphasis": "moderate",
         },
         "neutral": {
             "rate": (0, 0),
             "pitch": (0, 0),
             "volume": (0.0, 0.0),
-            "azure_style": "default",
+            "azure_style": "friendly",      # DavisNeural warm baseline
             "emphasis": "none",
         },
     }

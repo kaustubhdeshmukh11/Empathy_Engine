@@ -27,30 +27,40 @@ The Empathy Engine bridges the gap between text-based sentiment and expressive, 
 graph TD
     classDef input fill:#2b2d42,stroke:#edf2f4,stroke-width:2px,color:#edf2f4
     classDef process fill:#8d99ae,stroke:#2b2d42,stroke-width:2px,color:#edf2f4
-    classDef az fill:#0078D4,stroke:#005ba1,stroke-width:2px,color:#ffffff
-    classDef output fill:#ef233c,stroke:#d90429,stroke-width:2px,color:#ffffff
+    classDef single fill:#ef233c,stroke:#d90429,stroke-width:2px,color:#ffffff
+    classDef multi fill:#0078D4,stroke:#005ba1,stroke-width:2px,color:#ffffff
+    classDef output fill:#2d6a4f,stroke:#1b4332,stroke-width:2px,color:#ffffff
 
-    A[User Text Input]:::input --> B[Sentence Segmentation]:::process
+    A[/"📝 Text Input"/]:::input --> B["Sentence Splitter"]:::process
     
     subgraph Empathy Engine Core
-        B -->|For each sentence| C[DistilRoBERTa Emotion]:::process
-        B -->|For each sentence| D[VADER Intensity]:::process
-        C & D --> E{Emotion x Intensity}:::process
-        E --> F[Voice Modulator]:::process
+        B -->|Per sentence| C["DistilRoBERTa 7-Class Emotion"]:::process
+        B -->|Per sentence| D["VADER Intensity Scoring"]:::process
+        C & D --> E{"Emotion × Intensity"}:::process
+        E --> F["Voice Modulator"]:::process
     end
 
-    F -->|Rate Δ, Vol Δ, Azure Style| G[SSML Builder]:::process
+    F --> G{"Single or Multi?"}:::process
     
-    subgraph Synthesis
-        G -->|Multi-block SSML| H[Azure Cognitive Services]:::az
-        H -->|<mstts:express-as> + <prosody>| I[Continuous Audio Sync]:::az
-    end
-
-    I --> J[Audio Output .wav]:::output
+    G -->|"1 sentence"| H["Strategy 1: Full Expression"]:::single
+    G -->|"2+ sentences"| I["Strategy 2: Smooth Flow"]:::multi
     
-    style A color:#fff
-    style J color:#fff
+    H -->|"express-as + full prosody"| J["Azure TTS"]:::process
+    I -->|"prosody-only, no style switch"| J
+    
+    J --> K[/"🔊 Audio .wav"/]:::output
 ```
+
+### Dual-Strategy SSML
+
+| | Single Sentence (or <30 words) | Multi-Sentence (>30 words) |
+|---|---|---|
+| **Goal** | Maximum expressiveness | Voice continuity |
+| **express-as** | ✅ Full (styledegree up to 2.0) | ❌ Disabled |
+| **Rate** | ±30% | ±20% |
+| **Pitch** | ±50Hz | ±15Hz |
+| **Volume** | ±20% | ±12% |
+| **Result** | Dramatic, theatrical | Same speaker, shifting mood |
 
 ---
 

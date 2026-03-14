@@ -1,11 +1,19 @@
 """
-TTS Engine Module
+TTS Engine Module — Dual-Strategy SSML Architecture
 
-Dual-engine TTS with automatic engine selection:
-- AzureTTSEngine: Uses Azure Cognitive Services Speech SDK with full SSML
-  including <mstts:express-as> for native emotion styles and <prosody> for
-  rate/pitch/volume modulation. Supports multi-sentence segmented SSML.
-- OfflineTTSEngine: Uses pyttsx3 (SAPI5 on Windows) with basic prosody control.
+Two distinct SSML strategies depending on context:
+
+SINGLE-SENTENCE MODE (max expressiveness):
+  - Full <mstts:express-as> with uncapped styledegree (up to 2.0)
+  - Full <prosody> with wide clamps: ±30% rate, ±50Hz pitch, ±20% volume
+  - Azure handles one emotion block — no continuity concerns
+  → Result: Punchy, dramatic, theatrical delivery
+
+SEGMENTED MODE (multi-sentence continuity):
+  - <mstts:express-as> carries all the emotional weight (styledegree up to 2.0)
+  - <prosody> is kept minimal: ±8% rate, ±5Hz pitch, ±6% volume
+  - Azure naturally transitions between express-as blocks within one voice
+  → Result: Same speaker, shifting emotions, smooth continuous flow
 """
 
 import os
@@ -37,7 +45,6 @@ class BaseTTSEngine(ABC):
         Default implementation just concatenates text and uses first config.
         Subclasses (Azure) override this with proper multi-block SSML.
         """
-        # Fallback: combine text, use the first segment's config
         full_text = " ".join(seg[0] for seg in segments)
         config = segments[0][1] if segments else VoiceConfig(
             rate=165, pitch_delta=0, volume=0.95,
@@ -52,21 +59,31 @@ class BaseTTSEngine(ABC):
 
 
 # ──────────────────────────────────────────────────────────────
-#  Azure TTS
+#  Azure TTS — Dual-Strategy SSML
 # ──────────────────────────────────────────────────────────────
 class AzureTTSEngine(BaseTTSEngine):
     """
-    Azure Cognitive Services TTS with full SSML support.
+    Azure Cognitive Services TTS with dual-strategy SSML.
 
-    Supports:
-    - Single-block SSML: one emotion for the whole text
-    - Multi-block SSML:  per-sentence emotion styles with natural transitions
+    Voice: en-US-DavisNeural (male)
+    Supported express-as styles: angry, cheerful, excited, friendly,
+        hopeful, shouting, terrified, unfriendly, whispering, sad
+
+    Strategy 1 — SINGLE SENTENCE (maximum expressiveness):
+        Full prosody + full express-as. Go theatrical.
+
+    Strategy 2 — SEGMENTED (multi-sentence continuity):
+        Express-as carries emotion, prosody is whisper-quiet.
+        Same speaker, shifting feelings.
     """
 
-    # Change VOICE_NAME to switch voice:
-    #   Female: en-US-JennyNeural, en-US-AriaNeural, en-US-JaneNeural
-    #   Male:   en-US-GuyNeural, en-US-DavisNeural, en-US-TonyNeural
+    # ── Voice Selection ──────────────────────────────────────
+    # DavisNeural: best male voice for express-as style support
+    # Alternative: en-US-JennyNeural (female, also great style support)
     VOICE_NAME = "en-US-DavisNeural"
+
+    BASE_WPM = 165
+    BASE_VOL = 0.95
 
     def __init__(self, speech_key: str, speech_region: str):
         import azure.cognitiveservices.speech as speechsdk
@@ -76,58 +93,63 @@ class AzureTTSEngine(BaseTTSEngine):
             region=speech_region,
         )
         self._speech_config.set_speech_synthesis_output_format(
-            speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm
+            speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
         )
 
     @property
     def engine_name(self) -> str:
         return "Azure Cognitive Services TTS"
 
-    # ── SSML helpers ──────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    #  STRATEGY 1: Single-Sentence — Maximum Expressiveness
+    # ══════════════════════════════════════════════════════════
 
-    def _prosody_attrs(self, config: VoiceConfig) -> dict:
-        """Convert a VoiceConfig into clamped SSML prosody attribute strings."""
-        BASE_WPM = 165
-        raw_rate_pct = int(((config.rate - BASE_WPM) / BASE_WPM) * 100)
-        rate_pct = max(-30, min(30, raw_rate_pct))
+    def _build_single_ssml(self, text: str, config: VoiceConfig) -> str:
+        """
+        Build SSML for a SINGLE sentence/text block.
+
+        Goes all-out with expressiveness:
+        - Full pitch range (±50Hz) for dramatic vocal shifts
+        - Full rate range (±30%) for speed variation
+        - Full volume range (±20%) for dynamic loudness
+        - Express-as with uncapped styledegree (up to 2.0)
+
+        No continuity concerns — this is one emotion, one shot.
+        """
+        safe = html.escape(text)
+
+        # Wide clamps — let the modulator's full range through
+        raw_rate = int(((config.rate - self.BASE_WPM) / self.BASE_WPM) * 100)
+        rate_pct = max(-30, min(30, raw_rate))
 
         pitch_hz = max(-50, min(50, config.pitch_delta))
 
-        raw_vol_pct = int((config.volume - 0.95) / 0.95 * 100)
-        vol_pct = max(-20, min(20, raw_vol_pct))
+        raw_vol = int((config.volume - self.BASE_VOL) / self.BASE_VOL * 100)
+        vol_pct = max(-20, min(20, raw_vol))
 
-        return {
-            "rate": f"{rate_pct:+d}%",
-            "pitch": f"{pitch_hz:+d}Hz",
-            "volume": f"{vol_pct:+d}%",
-        }
+        rate_str = f"{rate_pct:+d}%"
+        pitch_str = f"{pitch_hz:+d}Hz"
+        vol_str = f"{vol_pct:+d}%"
 
-    def _sentence_ssml(self, text: str, config: VoiceConfig) -> str:
-        """Build one <mstts:express-as> + <prosody> block for a sentence."""
-        p = self._prosody_attrs(config)
-        safe = html.escape(text)
-
+        # Build the inner content
         if config.azure_style and config.azure_style != "default":
-            return (
+            body = (
                 f'    <mstts:express-as style="{config.azure_style}" '
                 f'styledegree="{config.style_degree}">\n'
-                f'      <prosody rate="{p["rate"]}" pitch="{p["pitch"]}" '
-                f'volume="{p["volume"]}">\n'
+                f'      <prosody rate="{rate_str}" pitch="{pitch_str}" '
+                f'volume="{vol_str}">\n'
                 f'        {safe}\n'
                 f'      </prosody>\n'
                 f'    </mstts:express-as>'
             )
         else:
-            return (
-                f'    <prosody rate="{p["rate"]}" pitch="{p["pitch"]}" '
-                f'volume="{p["volume"]}">\n'
+            body = (
+                f'    <prosody rate="{rate_str}" pitch="{pitch_str}" '
+                f'volume="{vol_str}">\n'
                 f'      {safe}\n'
                 f'    </prosody>'
             )
 
-    def _build_ssml(self, text: str, config: VoiceConfig) -> str:
-        """Build SSML for a single text block (backwards-compatible)."""
-        body = self._sentence_ssml(text, config)
         return (
             f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"\n'
             f'    xmlns:mstts="https://www.w3.org/2001/mstts"\n'
@@ -138,62 +160,56 @@ class AzureTTSEngine(BaseTTSEngine):
             f'</speak>'
         )
 
+    # ══════════════════════════════════════════════════════════
+    #  STRATEGY 2: Segmented — Continuity-First
+    # ══════════════════════════════════════════════════════════
+
     def _build_segmented_ssml(
         self, segments: List[Tuple[str, VoiceConfig]]
     ) -> str:
         """
-        Build multi-sentence SSML for natural emotional transitions.
+        Build multi-sentence SSML prioritizing voice continuity.
 
-        Strategy for coherence — same voice, different feeling:
-        - USE express-as:  Azure's neural style system naturally morphs
-          tone/tempo/energy without changing the speaker's identity.
-        - ZERO OUT pitch:  Pitch shifts are the #1 cause of sounding like
-          a different person. Removed entirely from segmented mode.
-        - SUBTLE rate:     Capped at ±12% — enough to feel faster/slower
-          without jarring acoustic jumps.
-        - SUBTLE volume:   Capped at ±8% — barely perceptible shift.
-        - NO explicit breaks: Punctuation (. ! ?) already gives Azure a
-          natural breath point between sentences.
+        KEY INSIGHT: Azure's express-as changes the voice CHARACTER on
+        every supported voice — cheerful Davis sounds like a different
+        person than sad Davis. This is great for single sentences but
+        breaks multi-sentence continuity.
+
+        Solution: Use ONLY <prosody> for segmented mode. The emotion
+        comes through rate, pitch, and volume shifts — subtle enough
+        to keep the same speaker, expressive enough to feel the mood:
+
+        - rate:    ±20% — clearly faster/slower
+        - pitch:   ±15Hz — noticeable but same throat
+        - volume:  ±12% — louder/quieter without jarring
+        - No express-as: Same voice character throughout
+        - No breaks: Natural punctuation handles pacing
         """
-        BASE_WPM = 165
         blocks = []
         for sentence, config in segments:
             safe = html.escape(sentence)
 
-            # Rate — widen clamp to ±25% for more tempo expression
-            raw_rate = int(((config.rate - BASE_WPM) / BASE_WPM) * 100)
-            rate_pct = max(-25, min(25, raw_rate))
+            # Moderate prosody — expressive but same speaker
+            raw_rate = int(((config.rate - self.BASE_WPM) / self.BASE_WPM) * 100)
+            rate_pct = max(-20, min(20, raw_rate))
             rate_str = f"{rate_pct:+d}%"
 
-            # Volume — widen clamp to ±15%
-            raw_vol = int((config.volume - 0.95) / 0.95 * 100)
-            vol_pct = max(-15, min(15, raw_vol))
-            vol_str = f"{vol_pct:+d}%"
-
-            # Pitch — very tight clamp to prevent voice character breaking
-            # but still allow subtle emotional bounce (0Hz was too flat)
-            pitch_hz = max(-10, min(10, config.pitch_delta))
+            pitch_hz = max(-15, min(15, config.pitch_delta))
             pitch_str = f"{pitch_hz:+d}Hz"
 
-            if config.azure_style and config.azure_style != "default":
-                # Allow styledegree up to 2.0 (Azure max) for maximum expression
-                blocks.append(
-                    f'    <mstts:express-as style="{config.azure_style}" '
-                    f'styledegree="{min(config.style_degree, 2.0)}">\n'
-                    f'      <prosody rate="{rate_str}" pitch="{pitch_str}" '
-                    f'volume="{vol_str}">{safe}</prosody>\n'
-                    f'    </mstts:express-as>'
-                )
-            else:
-                blocks.append(
-                    f'    <prosody rate="{rate_str}" pitch="{pitch_str}" '
-                    f'volume="{vol_str}">{safe}</prosody>'
-                )
+            raw_vol = int((config.volume - self.BASE_VOL) / self.BASE_VOL * 100)
+            vol_pct = max(-12, min(12, raw_vol))
+            vol_str = f"{vol_pct:+d}%"
+
+            # Prosody-only — no express-as, same voice throughout
+            blocks.append(
+                f'    <prosody rate="{rate_str}" pitch="{pitch_str}" '
+                f'volume="{vol_str}">{safe}</prosody>'
+            )
 
         body = "\n".join(blocks)
         return (
             f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"\n'
-            f'    xmlns:mstts="https://www.w3.org/2001/mstts"\n'
             f'    xml:lang="en-US">\n'
             f'  <voice name="{self.VOICE_NAME}">\n'
             f'{body}\n'
@@ -225,8 +241,8 @@ class AzureTTSEngine(BaseTTSEngine):
             raise RuntimeError(f"Azure TTS failed: {result.reason}")
 
     def synthesize(self, text: str, voice_config: VoiceConfig, output_path: str) -> str:
-        """Synthesize a single text block."""
-        ssml = self._build_ssml(text, voice_config)
+        """Synthesize a single text block — MAXIMUM expressiveness."""
+        ssml = self._build_single_ssml(text, voice_config)
         return self._do_synthesis(ssml, output_path)
 
     def synthesize_segmented(
@@ -234,7 +250,7 @@ class AzureTTSEngine(BaseTTSEngine):
         segments: List[Tuple[str, VoiceConfig]],
         output_path: str,
     ) -> str:
-        """Synthesize multi-sentence text with per-sentence emotion styles."""
+        """Synthesize multi-sentence text — CONTINUITY-first strategy."""
         ssml = self._build_segmented_ssml(segments)
         return self._do_synthesis(ssml, output_path)
 

@@ -11,8 +11,7 @@ env/
 # Environment variables
 .env
 
-# Output audio files
-output/
+demos
 
 # Model cache
 .cache/
@@ -24,5 +23,3 @@ output/
 # OS
 Thumbs.db
 .DS_Store
-
-output
