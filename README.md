@@ -56,19 +56,6 @@ graph TD
     J --> K[/"🔊 Audio .wav"/]:::output
 ```
 
-### Dual-Strategy SSML
-
-| | Single Sentence (or <30 words) | Multi-Sentence (>30 words) |
-|---|---|---|
-| **Goal** | Maximum expressiveness | Voice continuity |
-| **express-as** | ✅ Full (styledegree up to 2.0) | ❌ Disabled |
-| **Rate** | ±30% | ±20% |
-| **Pitch** | ±50Hz | ±15Hz |
-| **Volume** | ±20% | ±12% |
-| **Result** | Dramatic, theatrical | Same speaker, shifting mood |
-
----
-
 ## Setup
 
 ### 1. Clone & create virtual environment
