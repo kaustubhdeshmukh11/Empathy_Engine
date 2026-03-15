@@ -13,15 +13,14 @@
 
 The Empathy Engine bridges the gap between text-based sentiment and expressive, human-like audio output. Instead of monotonic delivery, it analyzes the emotional content of your text and adjusts speech parameters — rate, pitch, volume, and speaking style — to achieve emotional resonance.
 
-### Features
+### ✨ Core Features & Highlights
 
-| Feature | Description |
-|---|---|
-| **Multi-Sentence Segmentation** | Automatically splits text, analyzing and modulating emotion per-sentence without breaking voice identity. |
-| **Native Emotion Styles** | Wraps sentences in Azure SSML `<mstts:express-as>` tags (cheerful, angry, excited, sad) based on context. |
-| **Prosody Contouring** | Smoothly interpolates rate (±25%), pitch (±10Hz), and volume to match sentiment intensity (via VADER). |
-| **Web Interface** | Live testing via a dark-themed FastAPI UI showing per-sentence emotional breakdowns and audio playback. |
-| **7-class Emotion Detection** | Powered locally by HuggingFace `DistilRoBERTa` for accurate contextual sentiment. |
+- **🎯 Granular Emotion Analysis**: Instead of applying a single blanket emotion to a long text, the engine performs **sentence-by-sentence** contextual emotion detection (7 classes) using locally hosted `DistilRoBERTa`.
+- **📈 Intensity-Scaled Voice Modulation**: Emotions aren't just on or off. Using VADER sentiment analysis, the engine calculates a continuous intensity score (0.0–1.0) and linearly scales the voice parameters (rate, pitch, volume) so the delivery perfectly matches the text's energy.
+- **🧠 Dual-Strategy SSML (Special Feature)**: Our dynamic SSML generator intuitively switches strategies based on text length:
+  - *Short text*: Uses full Azure `<mstts:express-as>` styles for maximum theatrical expression.
+  - *Long text*: Disables categorical styles to prevent the voice character from "breaking" between sentences, instead using purely clamped prosody modulation to maintain a **smooth, continuous emotional flow** with the exact same voice identity.
+- **💻 Interactive Web UI**: A sleek, dark-themed FastAPI web interface that provides live audio synthesis, complete with a visual breakdown of per-sentence emotions, reasoning, and the exact voice configurations applied.
 
 
 ---
@@ -36,25 +35,38 @@ graph TD
     classDef multi fill:#0078D4,stroke:#005ba1,stroke-width:2px,color:#ffffff
     classDef output fill:#2d6a4f,stroke:#1b4332,stroke-width:2px,color:#ffffff
 
-    A[/"📝 Text Input"/]:::input --> B["Sentence Splitter"]:::process
+    A[/"📝 Text Input"/]:::input --> B["Multi-Sentence Segmenter"]:::process
     
     subgraph Empathy Engine Core
-        B -->|Per sentence| C["DistilRoBERTa 7-Class Emotion"]:::process
-        B -->|Per sentence| D["VADER Intensity Scoring"]:::process
-        C & D --> E{"Emotion × Intensity"}:::process
-        E --> F["Voice Modulator"]:::process
+        B -->|Sentence-by-Sentence| C["DistilRoBERTa Emotion Classifier"]:::process
+        B -->|Sentence-by-Sentence| D["VADER Sentiment Scaler"]:::process
+        C & D --> E{"Emotion × Continuous Intensity"}:::process
+        E --> F["Voice Modulator<br/>(Rate, Pitch, Volume)"]:::process
     end
 
-    F --> G{"Single or Multi?"}:::process
+    F --> G{"Dual-Strategy SSML Generator<br/>(Is Text > 30 words?)"}:::process
     
-    G -->|"1 sentence"| H["Strategy 1: Full Expression"]:::single
-    G -->|"2+ sentences"| I["Strategy 2: Smooth Flow"]:::multi
+    G -->|"No (Short Burst)"| H["Strategy 1: Full Expression"]:::single
+    G -->|"Yes (Long Text)"| I["Strategy 2: Smooth Flow"]:::multi
     
-    H -->|"express-as + full prosody"| J["Azure TTS"]:::process
-    I -->|"prosody-only, no style switch"| J
+    H -->|"<mstts:express-as><br/>+ full prosody clamps"| J["Azure Neural TTS"]:::process
+    I -->|"prosody-only modulation<br/>(Maintains Voice Identity)"| J
     
-    J --> K[/"🔊 Audio .wav"/]:::output
+    J --> K[/"🔊 Expressive Audio .wav"/]:::output
 ```
+
+### Dual-Strategy SSML
+
+| | Single Sentence (or <30 words) | Multi-Sentence (>30 words) |
+|---|---|---|
+| **Goal** | Maximum expressiveness | Voice continuity |
+| **express-as** | ✅ Full (styledegree up to 2.0) | ❌ Disabled |
+| **Rate** | ±30% | ±20% |
+| **Pitch** | ±50Hz | ±15Hz |
+| **Volume** | ±20% | ±12% |
+
+
+---
 
 ## Setup
 
